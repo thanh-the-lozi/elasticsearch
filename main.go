@@ -1,13 +1,17 @@
 package main
 
 import (
-	"context" // Log errors and quit
-	// Get object methods and attributes
-	"fmt"  // Format and print cluster data
-	"time" // Set a timeout for the connection
-	// Import the Olivere Golang driver for Elasticsearch
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
 
 	"github.com/olivere/elastic"
+)
+
+const (
+	indexName = "students"
+	_type     = "_doc"
 )
 
 var (
@@ -16,27 +20,12 @@ var (
 	err    error
 )
 
-const (
-	mapping = `{
-		"settings":{
-			"number_of_shards":1,
-			"number_of_replicas":0
-		},
-		"mappings":{
-			"properties":{
-				"tags":{
-					"type":"keyword"
-				},
-				"location":{
-					"type":"geo_point"
-				},
-				"suggest_field":{
-					"type":"completion"
-				}
-			}
-		}
-	}`
-)
+type Student struct {
+	Id           string  `json:"id"`
+	Name         string  `json:"name"`
+	Age          int64   `json:"age"`
+	AverageScore float64 `json:"average_score"`
+}
 
 func main() {
 	client, err = NewClient()
@@ -48,16 +37,21 @@ func main() {
 
 	ctx = context.Background()
 
-	DeleteAllIndexes()
-	// CreateIndex("some_index")
-	// IndexExists("s")
-	// IndexDocument("index2", "1", "film", mapping)
-	// GetDocument("students", "1", "", mapping)
-	// ListIndexNames()
+	for i := 1; i < 15; i++ {
+		newStudent := Student{
+			Id:           fmt.Sprint(i),
+			Name:         "User " + fmt.Sprint(i),
+			Age:          (int64)(40 - 10%i),
+			AverageScore: (float64)(100 - (40 - 10%i)),
+		}
 
-	// // Xoá một index
-	// DeleteIndex("index2")
-	// ListIndexNames()
+		CreateIndex(newStudent, indexName, fmt.Sprint(i))
+	}
+
+	IndexExists(indexName)
+	GetDocument(indexName, "1")
+	ListIndexNames()
+	DeleteIndex(indexName)
 }
 
 //=============================//
@@ -76,46 +70,48 @@ func NewClient() (*elastic.Client, error) {
 }
 
 // Tạo index
-func CreateIndex(index string) {
-	createdIndex, err := client.CreateIndex(index).BodyString(mapping).Do(ctx)
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println("create: ", createdIndex)
-}
-
-// Kiểm tra index tồn tại chưa
-func IndexExists(index string) {
-	exist, err := client.IndexExists(index).Do(ctx)
-	if err != nil {
-		fmt.Println("exist:", err)
-	} else {
-		fmt.Println("exist:", exist)
-	}
-}
-
-// Đánh index cho document
-func IndexDocument(index, id, _type string, document interface{}) {
-	put1, _ := client.Index().
-		Index(index).
-		BodyJson(document).
+func CreateIndex(newStudent Student, index, id string) {
+	dataJSON, err := json.Marshal(newStudent)
+	js := string(dataJSON)
+	_, err = client.Index().
+		Index(indexName).
+		BodyJson(js).
 		Type(_type).
 		Id(id).
 		Do(ctx)
 
-	fmt.Println("index: ", put1.Id, put1.Version, put1.Index, put1.Type)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("inserted:", newStudent.Name)
+}
+
+// Kiểm tra index tồn tại chưa
+func IndexExists(index string) {
+	isExist, err := client.IndexExists(index).Do(ctx)
+	if err != nil {
+		fmt.Println("exist (error):", err)
+	} else {
+		fmt.Println("exist:", isExist)
+	}
 }
 
 // Lấy document từ index
-func GetDocument(index, id, _type string, document interface{}) {
-	res, err := client.Get().Index(index).Id(id).Type(_type).Do(ctx)
+func GetDocument(index, id string) {
+	res, err := client.Get().
+		Index(index).
+		Id(id).
+		Type(_type).
+		Do(ctx)
+
 	if err != nil {
-		fmt.Println("get: ", err)
+		fmt.Println(err)
 	} else {
 		if res.Found {
-			fmt.Println("get res: ", res.Id, res.Version, res.Index, res.Type)
+			fmt.Println("document info: ", res.Id, res.Version, res.Index, res.Type)
 		} else {
-			fmt.Println("not found")
+			fmt.Println("not found document")
 		}
 	}
 }
@@ -137,13 +133,5 @@ func ListIndexNames() {
 	names, _ := client.IndexNames()
 	for _, name := range names {
 		fmt.Println(name)
-	}
-}
-
-// Xóa tất cả index
-func DeleteAllIndexes() {
-	names, _ := client.IndexNames()
-	for _, name := range names {
-		DeleteIndex(name)
 	}
 }
