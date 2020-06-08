@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -37,6 +38,7 @@ func main() {
 
 	ctx = context.Background()
 
+	// Tạo dữ liệu mẫu
 	for i := 1; i < 15; i++ {
 		newStudent := Student{
 			Id:           fmt.Sprint(i),
@@ -48,6 +50,7 @@ func main() {
 		CreateIndex(newStudent, indexName, fmt.Sprint(i))
 	}
 
+	Search("2")
 	// IndexExists(indexName)
 	// GetDocument(indexName, "1")
 	// ListIndexNames()
@@ -133,5 +136,33 @@ func ListIndexNames() {
 	names, _ := client.IndexNames()
 	for _, name := range names {
 		fmt.Println(name)
+	}
+}
+
+// Tìm kiếm theo từ khóa
+func Search(keyword string) {
+	matchQuery := elastic.NewMatchQuery("name", keyword)
+	matchQuery2 := elastic.NewMatchQuery("age", keyword)
+	matchQuery3 := elastic.NewMatchQuery("average_score", keyword)
+	generalQuery := elastic.NewBoolQuery().
+		Should(matchQuery).
+		Should(matchQuery2).
+		Should(matchQuery3)
+
+	res, err := client.Search().
+		Index(indexName).
+		Query(generalQuery).
+		From(0).Size(10000).
+		Do(ctx)
+
+	if err != nil {
+		// Handle error
+		log.Println("error:", err)
+		return
+	}
+
+	// In danh sách kết quả
+	for _, hit := range res.Hits.Hits {
+		fmt.Println(hit.Id)
 	}
 }
