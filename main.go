@@ -48,9 +48,9 @@ func main() {
 		CreateIndex(newStudent, indexName, fmt.Sprint(i))
 	}
 
-	IndexExists(indexName)
-	GetDocument(indexName, "1")
-	ListIndexNames()
+	// IndexExists(indexName)
+	// GetDocument(indexName, "1")
+	// ListIndexNames()
 	DeleteIndex(indexName)
 }
 
